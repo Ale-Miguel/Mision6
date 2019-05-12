@@ -1,3 +1,9 @@
+/*
+Alejandro Miguel Sánchez Mora   A01272385
+Mariano Hurtado
+
+
+*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -16,111 +22,122 @@ void error(const char *msg)
     exit(0);
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]){
     int sockfd, portno, n;
     struct sockaddr_in serv_addr;
-    struct hostent *server;
 
-    char buffer[BUFFER_SIZE];
+    char buffer[BUFFER_SIZE];//Buffer donde se almacena la informacion que se recibe y se envía
+    //Los argumentos son la dirección IP del servidor y su puerto
     if (argc < 3) {
        fprintf(stderr,"usage %s host_IP port\n", argv[0]);
        exit(0);
     }
-    portno = atoi(argv[2]);
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+
+    portno = atoi(argv[2]); //Se obtiene el número de puerto
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);   //Se crea el socket del cliente
     if (sockfd < 0) 
         error("ERROR opening socket");
-    server = gethostbyname(argv[1]);
-    if (server == NULL) {
-        fprintf(stderr,"ERROR, no such host\n");
-        exit(0);
-    }
-    bzero((char *) &serv_addr, sizeof(serv_addr));
+
+    bzero((char *) &serv_addr, sizeof(serv_addr));  //Se inicializa la estructura del socket para el servidor
     serv_addr.sin_family = AF_INET;
-    /*bcopy((char *)server->h_addr, 
-         (char *)&serv_addr.sin_addr.s_addr,
-         server->h_length);*/
-    //erv_addr.sin_addr.s_addr = inet_addr(argv[1]);
-     serv_addr.sin_addr.s_addr = inet_addr(argv[1]);
-    serv_addr.sin_port = htons(portno);
+    serv_addr.sin_addr.s_addr = inet_addr(argv[1]);    //Se le dice la IP del servidor
+    serv_addr.sin_port = htons(portno); //Se le pone el puerto del servidor
+
+    //Se conecta con el servdor
     if (connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) 
         error("ERROR connecting");
-    char sFileName[sizeof(buffer)];
-    printf("Please enter the file name: ");
-    bzero(buffer,BUFFER_SIZE);
-    scanf("%s",buffer);
-    n = write(sockfd,buffer,strlen(buffer));
+
+    char sFileName[sizeof(buffer)]; //Cadena que guarda el nombre del archivo
+
+    printf("Please enter the file name: "); //Se le pide al usuario el nombre del archivo que va a enviar
+    bzero(buffer,BUFFER_SIZE);  //Se limpia el buffer
+    scanf("%s",buffer); //Se lee el nombre de archivo
+
+    n = write(sockfd,buffer,strlen(buffer));    //Se envía el nombre del archivo
+
     if (n < 0) 
-     error("ERROR writing to socket");
+     error("ERROR sending file name");
     
-    strcpy(sFileName, buffer);
-    bzero(buffer,BUFFER_SIZE);
-    
-    char sWords[BUFFER_SIZE-1];
-    FILE * archivo;
-    int words = 0;
-    char ch;
+    strcpy(sFileName, buffer);  //Se guarda el nombre del archivo
+    bzero(buffer,BUFFER_SIZE);  //Se limpia el buffer
 
-    archivo = fopen(sFileName, "r");
+    char sPalabra[BUFFER_SIZE]; //Cadena que guarda las palabras del archivo que se va a enviar
 
+    FILE * archivo; //Apuntador del archivo a enviar
+
+    int words = 0;  //Contador de palabras para indicar al servidor cuántas palabras/secciones se van a enviar
+
+    char ch;    //Variable para almacenar los espacios, EOL o cualquier elemento que fscanf no lee
+
+    archivo = fopen(sFileName, "r");    //Se abre el archivo que se va a enviar
+
+    //Ciclo para leer el archivo y contar los segmentos que se van a enviar
     while((ch = fgetc(archivo)) != EOF){
-        fscanf(archivo, "%s", sWords);
-        //printf("%s ch=%d\n",sWords, ch );
-
-        //if(ch == '\t' || ch == '\n' || ch == 32) //32 es el valor en ASCII para el espacio
-            words+=2;
+        fscanf(archivo, "%s", sPalabra);  //Se lee una palabra
+        words+=2;   //Se incrementa en 2 el contador (ch + sPalabra)
     }
-    //words *= 2;
+
+    //Se limpian las variables
     ch = '\0';
+
+    //Se envía al servidor el conteo de segmentos que se van a enviar
     n = write(sockfd,&words,sizeof(words));
 
-    rewind(archivo);
-    char sPalabra[sizeof(buffer)];
+    rewind(archivo);    //Se apunta al inicio del archvio para volver a leer el archivo
+
+    //Ciclo para leer y enviar el contenido del archivo
     while((ch = fgetc(archivo)) != EOF){
         
-        //printf("%s ch=%d\n",sWords, ch );
-        //strcpy(sPalabra, &ch);
-        //strcat(sPalabra, sWords);
-        bzero(buffer,BUFFER_SIZE);
-        buffer[0] = ch;
-        strcpy(sPalabra, buffer);
-        do{
-            //bzero(buffer,BUFFER_SIZE);
-            n = write(sockfd, sPalabra, BUFFER_SIZE-1);
-            bzero(buffer,BUFFER_SIZE);
-            n = read(sockfd, buffer, BUFFER_SIZE-1);
-        }while(strcmp(sPalabra, buffer) != 0);
-        
-        strcpy(buffer, "OK");
-        n = write(sockfd, buffer, BUFFER_SIZE-1);
-        bzero(buffer, BUFFER_SIZE);
-        fscanf(archivo, "%s", buffer);
+        bzero(buffer,BUFFER_SIZE);  //Se limpia el buffer
+        buffer[0] = ch; //Se le asigna el valor del ch al buffer para que se envíe
+        strcpy(sPalabra, buffer);   //Se almacena el contenido del buffer para enviarlo posteriormente
 
-        strcpy(sPalabra, buffer);
+        //Ciclo para asegurar que el servidor recibió correctamente
+        //lo que el cliente envió
         do{
-            //bzero(buffer,BUFFER_SIZE);
-            n = write(sockfd, sPalabra, BUFFER_SIZE-1);
-            bzero(buffer,BUFFER_SIZE);
-            n = read(sockfd, buffer, BUFFER_SIZE-1);
-        }while(strcmp(sPalabra, buffer) != 0);
+            n = write(sockfd, sPalabra, BUFFER_SIZE-1); //Se envía la información
+            bzero(buffer,BUFFER_SIZE);  //Se limpia el buffer
+            n = read(sockfd, buffer, BUFFER_SIZE-1);    //Se recibe lo que el servidor ha recibido
+        }while(strcmp(sPalabra, buffer) != 0);  //Se compara lo que el servidor recibió con lo que se envió
         
+        //Se manda un mensaje de "OK" para indicar al servidor 
+        //que recibió correctamente la información
+        strcpy(buffer, "OK");   
+        n = write(sockfd, buffer, BUFFER_SIZE-1);   //Se envía el acknowledgement
+
+        bzero(buffer, BUFFER_SIZE); //Se limpia el buffer
+
+        fscanf(archivo, "%s", buffer);  //Se lee el archivo
+
+        strcpy(sPalabra, buffer);   //Se almacena el contenido del buffer para enviarlo posteriormente
+        //Ciclo para asegurar que el servidor recibió correctamente
+        //lo que el cliente envió
+        do{
+            n = write(sockfd, sPalabra, BUFFER_SIZE-1); //Se envía la información
+            bzero(buffer,BUFFER_SIZE);  //Se limpia el buffer
+            n = read(sockfd, buffer, BUFFER_SIZE-1);
+        }while(strcmp(sPalabra, buffer) != 0);  //Se recibe lo que el servidor ha recibido
+        
+        //Se manda un mensaje de "OK" para indicar al servidor 
+        //que recibió correctamente la información
         strcpy(buffer, "OK");
-        n = write(sockfd, buffer, BUFFER_SIZE-1);
+        n = write(sockfd, buffer, BUFFER_SIZE-1);   //Se envía el acknowledgement
             
         if (n < 0) 
             error("ERROR writing to socket");
 
-        //strcpy(buffer, "");
+        //Se limpian las variables
         bzero(buffer, BUFFER_SIZE);
         ch = 0;
         strcpy(sPalabra, "");
     }
 
+    //Se recibe el ok del servidor
     n = read(sockfd,buffer,BUFFER_SIZE-1);
     if (n < 0) error("ERROR reading from socket");
 
-    printf("%s\n",buffer);
-    close(sockfd);
+    printf("%s\n",buffer);  //Se imprime el mensaje del servidor
+    close(sockfd);  //Se cierra el socket
+    
     return 0;
 }
