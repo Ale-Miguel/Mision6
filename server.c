@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
     bzero(buffer,BUFFER_SIZE);
     n = read(newsockfd,buffer,BUFFER_SIZE-1);
     if (n < 0) error("ERROR reading from socket");
-    printf("Here is the file name: %s, %ld\n",buffer, strlen(buffer));
+    printf("Here is the file name: %s\n",buffer);
     char sFileName[sizeof(buffer)];
     strcpy(sFileName, buffer);
     
@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
             bzero(buffer, BUFFER_SIZE);
             n=read(newsockfd, buffer, BUFFER_SIZE-1);
             //printf("Recibido:%s, strlen= %ld b[0]=%d, b[1]= %d, b[2]=%d\n", buffer, strlen(buffer), buffer[0], buffer[1], buffer[2]);
-            printf("Recibido:%s, \n", buffer);
+            //printf("Recibido:%s, \n", buffer);
             strcpy(sPalabra, buffer);
             
             n=write(newsockfd, buffer, BUFFER_SIZE-1);
@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
 
     fclose(archivo);
 
-    n = write(newsockfd,"I got your message",18);
+    n = write(newsockfd,"I got your file",18);
     if (n < 0) error("ERROR writing to socket");
 
     close(newsockfd);
