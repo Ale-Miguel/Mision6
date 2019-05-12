@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
 
     while((ch = fgetc(archivo)) != EOF){
         fscanf(archivo, "%s", sWords);
-        printf("%s ch=%d\n",sWords, ch );
+        //printf("%s ch=%d\n",sWords, ch );
 
         //if(ch == '\t' || ch == '\n' || ch == 32) //32 es el valor en ASCII para el espacio
             words+=2;
