@@ -8,6 +8,8 @@
 #include <netdb.h> 
 #include <arpa/inet.h>
 
+#define BUFFER_SIZE 256
+
 void error(const char *msg)
 {
     perror(msg);
@@ -20,7 +22,7 @@ int main(int argc, char *argv[])
     struct sockaddr_in serv_addr;
     struct hostent *server;
 
-    char buffer[256];
+    char buffer[BUFFER_SIZE];
     if (argc < 3) {
        fprintf(stderr,"usage %s host_IP port\n", argv[0]);
        exit(0);
@@ -46,16 +48,16 @@ int main(int argc, char *argv[])
         error("ERROR connecting");
     char sFileName[sizeof(buffer)];
     printf("Please enter the file name: ");
-    bzero(buffer,256);
+    bzero(buffer,BUFFER_SIZE);
     scanf("%s",buffer);
     n = write(sockfd,buffer,strlen(buffer));
     if (n < 0) 
      error("ERROR writing to socket");
     
     strcpy(sFileName, buffer);
-    bzero(buffer,256);
+    bzero(buffer,BUFFER_SIZE);
     
-    char sWords[255];
+    char sWords[BUFFER_SIZE-1];
     FILE * archivo;
     int words = 0;
     char ch;
@@ -80,43 +82,44 @@ int main(int argc, char *argv[])
         //printf("%s ch=%d\n",sWords, ch );
         //strcpy(sPalabra, &ch);
         //strcat(sPalabra, sWords);
-        bzero(buffer,256);
+        bzero(buffer,BUFFER_SIZE);
         buffer[0] = ch;
-        n = write(sockfd, buffer, 255);
-        bzero(buffer,256);
+        strcpy(sPalabra, buffer);
+        do{
+            //bzero(buffer,BUFFER_SIZE);
+            n = write(sockfd, sPalabra, BUFFER_SIZE-1);
+            bzero(buffer,BUFFER_SIZE);
+            n = read(sockfd, buffer, BUFFER_SIZE-1);
+        }while(strcmp(sPalabra, buffer) != 0);
+        
+        strcpy(buffer, "OK");
+        n = write(sockfd, buffer, BUFFER_SIZE-1);
+        bzero(buffer, BUFFER_SIZE);
         fscanf(archivo, "%s", buffer);
-        n = write(sockfd, buffer, 255);
-        //if(!((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')))
-            
 
+        strcpy(sPalabra, buffer);
+        do{
+            //bzero(buffer,BUFFER_SIZE);
+            n = write(sockfd, sPalabra, BUFFER_SIZE-1);
+            bzero(buffer,BUFFER_SIZE);
+            n = read(sockfd, buffer, BUFFER_SIZE-1);
+        }while(strcmp(sPalabra, buffer) != 0);
+        
+        strcpy(buffer, "OK");
+        n = write(sockfd, buffer, BUFFER_SIZE-1);
+            
         if (n < 0) 
             error("ERROR writing to socket");
 
         //strcpy(buffer, "");
-        bzero(buffer, 256);
+        bzero(buffer, BUFFER_SIZE);
         ch = 0;
-        
+        strcpy(sPalabra, "");
     }
 
-  /*  while( fscanf(archivo, "%s", sWords)!= EOF){
-        
-        //printf("%s ch=%d\n",sWords, ch );
+    n = read(sockfd,buffer,BUFFER_SIZE-1);
+    if (n < 0) error("ERROR reading from socket");
 
-        n = write(sockfd, sWords, 255);
-
-        if (n < 0) 
-            error("ERROR writing to socket");
-
-        strcpy(sWords, "");
-        
-    }*/
-
-
-    strcpy(sPalabra, "$EOF$");
-    //n = write(sockfd, sPalabra, strlen(sPalabra));
-    n = read(sockfd,buffer,255);
-    if (n < 0) 
-         error("ERROR reading from socket");
     printf("%s\n",buffer);
     close(sockfd);
     return 0;
