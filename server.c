@@ -8,6 +8,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+#define BUFFER_SIZE 256
+
 void error(const char *msg)
 {
     perror(msg);
@@ -18,7 +20,7 @@ int main(int argc, char *argv[])
 {
      int sockfd, newsockfd, portno;
      socklen_t clilen;
-     char buffer[256];
+     char buffer[BUFFER_SIZE];
      struct sockaddr_in serv_addr, cli_addr;
      int n;
      if (argc < 2) {
@@ -43,8 +45,8 @@ int main(int argc, char *argv[])
                  &clilen);
      if (newsockfd < 0) 
           error("ERROR on accept");
-    bzero(buffer,256);
-    n = read(newsockfd,buffer,255);
+    bzero(buffer,BUFFER_SIZE);
+    n = read(newsockfd,buffer,BUFFER_SIZE-1);
     if (n < 0) error("ERROR reading from socket");
     printf("Here is the file name: %s, %ld\n",buffer, strlen(buffer));
     char sFileName[sizeof(buffer)];
@@ -58,14 +60,26 @@ int main(int argc, char *argv[])
     int words = 0;
     n = read(newsockfd, &words, sizeof(words));
     //printf("Words: %d\n", words);
-
-    int i = 1;
-
+    char sPalabra[BUFFER_SIZE];
+   
     for(int i = 1; i <= words; i++){
-        n=read(newsockfd, buffer, 255);
-        //printf("Recibido:%s, strlen= %ld b[0]=%d, b[1]= %d, b[2]=%d\n", buffer, strlen(buffer), buffer[0], buffer[1], buffer[2]);
-        fprintf(archivo, "%s", buffer);
-        bzero(buffer, 256);
+
+        do{
+            strcpy(sPalabra, "");
+            bzero(buffer, BUFFER_SIZE);
+            n=read(newsockfd, buffer, BUFFER_SIZE-1);
+            //printf("Recibido:%s, strlen= %ld b[0]=%d, b[1]= %d, b[2]=%d\n", buffer, strlen(buffer), buffer[0], buffer[1], buffer[2]);
+            printf("Recibido:%s, \n", buffer);
+            strcpy(sPalabra, buffer);
+            
+            n=write(newsockfd, buffer, BUFFER_SIZE-1);
+            bzero(buffer, BUFFER_SIZE);
+            n=read(newsockfd, buffer, BUFFER_SIZE-1);
+        }while(strcmp(buffer, "OK") != 0);
+
+        fprintf(archivo, "%s", sPalabra);
+
+        
     }
 
     printf("File recieved: %s\n", sFileName );
