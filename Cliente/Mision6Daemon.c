@@ -19,9 +19,7 @@ Mariano Hurtado de Mendoza Carranza A00820039
 #include <sys/stat.h>
 #include <syslog.h>
 
-
-
-
+#define WORKING_DIRECTORY "/home/ale/Desktop"
 //Constantes para el inotify
 #define EVENT_SIZE  (sizeof(struct inotify_event))
 #define BUF_LEN     (1024 * (EVENT_SIZE + 16))
@@ -32,43 +30,13 @@ Mariano Hurtado de Mendoza Carranza A00820039
 #define DELETE_FILE "DELETE"
 #define UPDATE_FILE "UPDATE"
 
-void daemonize()
-{
-    pid_t pid;
-    
-    pid = fork();
+char *sServerIP;
+char *sPort;
 
-    if(pid < 0)
-        exit(EXIT_FAILURE);
 
-    if(pid > 0)
-        exit(EXIT_SUCCESS);
+#define DAEMON_FILE_OUTPUT_NAME "ArchivoDemonioMision6.txt"
 
-    if(setsid() < 0)
-        exit(EXIT_FAILURE);
-    
-    signal(SIGCHLD,SIG_IGN);
-    signal(SIGHUP,SIG_IGN);
 
-    pid = fork();
-
-    if(pid < 0)
-        exit(EXIT_FAILURE);
-
-    if(pid > 0)
-        exit(EXIT_SUCCESS);
-
-    umask(0);
-
-    chdir("/home/ale/Desktop");
-
-    for(int i = sysconf(_SC_OPEN_MAX); i >= 0; i++)
-    {
-        close(i);
-    }
-
-    openlog("mision6", LOG_PID,LOG_DAEMON);
-}
 
 void error(const char *msg)
 {
@@ -79,30 +47,105 @@ void error(const char *msg)
 void fileHandler(char *sFileName, char *sAction, int sockfd);
 void sendFile(char *sFileName, int sockfd);
 void createFile(char *sFileName, int sockfd);
+void executeClient();
+
+static void signalHandler(int sig) {
+    switch(sig) {
+        case SIGUSR1:
+            //log_message(LOG_FILE,"USR1 signal catched");
+            executeClient();
+            break;
+        case SIGUSR2:
+            //log_message(LOG_FILE,"USR2 signal catched");
+            exit(0);
+            break;
+    }
+}
+
+//Función daemonize que crea el daemo.
+//El código de esta función es una mezcla del código de clase, código propio y código obtenido de 
+//https://stackoverflow.com/questions/17954432/creating-a-daemon-in-linux
+static void daemonize(){
+    pid_t pid;
+
+    //Se crea un fork del proceso padre
+    pid = fork();
+
+   //En caso que un error suceda
+    if (pid < 0)
+        exit(EXIT_FAILURE);
+
+    //Si se creó el thread, se muere el padre
+    if (pid > 0)
+        exit(EXIT_SUCCESS);
+
+    //Si hubo un error
+    if (setsid() < 0)
+        exit(EXIT_FAILURE);
+
+    //Se implementan todos los signal handlers
+    signal(SIGCHLD, SIG_IGN);
+    signal(SIGHUP, SIG_IGN);
+    signal(SIGCHLD,SIG_IGN); /* ignore child */
+    signal(SIGTSTP,SIG_IGN); /* ignore tty signals */
+    signal(SIGTTOU,SIG_IGN);
+    signal(SIGTTIN,SIG_IGN);
+    signal(SIGUSR1,signalHandler); /* catch hangup signal */
+    signal(SIGUSR2,signalHandler); /* catch kill signal */
+
+
+    //Se obtienen todos los permisos
+    umask(0);
+
+    //Se cambia el working directory
+    chdir(WORKING_DIRECTORY);
+
+    //Se cierran todos los file descriptors abiertos
+    int x;
+    for (x = sysconf(_SC_OPEN_MAX); x>=0; x--){
+        close (x);
+    }
+
+    //Se abre un log para escribir los errores que puedan surgir
+    openlog ("Mision6Daemon", LOG_PID, LOG_DAEMON);
+}
 
 int main(int argc, char *argv[]){
 
-    
-
-
-    int sockfd, portno, n;
-    struct sockaddr_in serv_addr;
-
-    char buffer[BUFFER_SIZE];//Buffer donde se almacena la informacion que se recibe y se envía
-    //Los argumentos son la dirección IP del servidor y su puerto
     if (argc < 3) {
-       fprintf(stderr,"usage %s host_IP port\n", argv[0]);
+       //fprintf(stderr,"usage %s host_IP port\n", argv[0]);
        exit(0);
     }
 
-    portno = atoi(argv[2]); //Se obtiene el número de puerto
+    sServerIP = argv[1];
+    sPort = argv[2];
+
+    daemonize();
+
+    while(1){
+      //Ciclo infinito para evitar que el daemon se muera
+    }
+
+    closelog(); //Se cierra el log
+    return 0;
+}
+
+void executeClient(){
+    int sockfd, portno, n;
+    struct sockaddr_in serv_addr;
+    FILE * daemonOutputFile;
+    char buffer[BUFFER_SIZE];//Buffer donde se almacena la informacion que se recibe y se envía
+    //Los argumentos son la dirección IP del servidor y su puerto
+    daemonOutputFile = fopen(DAEMON_FILE_OUTPUT_NAME, "w");
+
+    portno = atoi(sPort); //Se obtiene el número de puerto
     sockfd = socket(AF_INET, SOCK_STREAM, 0);   //Se crea el socket del cliente
     if (sockfd < 0) 
         error("ERROR opening socket");
 
     bzero((char *) &serv_addr, sizeof(serv_addr));  //Se inicializa la estructura del socket para el servidor
     serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = inet_addr(argv[1]);    //Se le dice la IP del servidor
+    serv_addr.sin_addr.s_addr = inet_addr(sServerIP);    //Se le dice la IP del servidor
     serv_addr.sin_port = htons(portno); //Se le pone el puerto del servidor
 
     //Se conecta con el servdor
@@ -124,7 +167,7 @@ int main(int argc, char *argv[]){
         perror("inotify_init");
     }
 
-    wd = inotify_add_watch(fd, "/home/ale/Desktop",
+    wd = inotify_add_watch(fd, ".",
         IN_MODIFY | IN_CREATE | IN_DELETE);
     length = read(fd, fileBuffer, BUF_LEN);
 
@@ -132,7 +175,6 @@ int main(int argc, char *argv[]){
         perror("read");
     }
 /*#####################inotify################### */
-    daemonize();
     while(1){
       i = 0;
       length = read(fd, fileBuffer, BUF_LEN);
@@ -141,17 +183,17 @@ int main(int argc, char *argv[]){
             (struct inotify_event *) &fileBuffer[i];
         if (event->len) {
             if (event->mask & IN_CREATE) {
-                //printf("The file %s was created.\n", event->name);
+                fprintf(daemonOutputFile, "The file %s was created.\n", event->name);
                 strcpy(sFileName, event->name);
                 strcpy(sAction, CREATE_FILE);
                 fileHandler(sFileName, sAction, sockfd);
             } else if (event->mask & IN_DELETE) {
-                //printf("The file %s was deleted.\n", event->name);
+                fprintf(daemonOutputFile,"The file %s was deleted.\n", event->name);
                 strcpy(sFileName, event->name);
                 strcpy(sAction, DELETE_FILE);
                 fileHandler(sFileName, sAction, sockfd);
             } else if (event->mask & IN_MODIFY) {
-                //printf("The file %s was modified.\n", event->name);
+                fprintf(daemonOutputFile,"The file %s was modified.\n", event->name);
                 strcpy(sFileName, event->name);
                 strcpy(sAction, UPDATE_FILE);
                 fileHandler(sFileName, sAction, sockfd);
@@ -162,10 +204,9 @@ int main(int argc, char *argv[]){
 
     }
    
-
+    fclose(daemonOutputFile);
     close(sockfd);  //Se cierra el socket
     
-    return 0;
 }
 
 void fileHandler(char *sFileName, char *sAction, int sockfd){
@@ -192,17 +233,17 @@ void fileHandler(char *sFileName, char *sAction, int sockfd){
     bzero(buffer,BUFFER_SIZE);  //Se limpia el buffer
 
     if(strcmp(CREATE_FILE, sAction) == 0){
-        //printf("%s\n", sAction);
+        //fprintf(daemonOutputFile,"%s\n", sAction);
         createFile(sFileName, sockfd);
     }else if(strcmp(UPDATE_FILE, sAction) == 0){
-        //printf("%s\n", sAction);
+        //fprintf(daemonOutputFile,"%s\n", sAction);
         sendFile(sFileName, sockfd);
     }
     //Se recibe el ok del servidor
     n = read(sockfd,buffer,BUFFER_SIZE-1);
     if (n < 0) error("ERROR reading from socket");
 
-    //printf("%s\n",buffer);  //Se imprime el mensaje del servidor
+    //fprintf(daemonOutputFile,"%s\n",buffer);  //Se imprime el mensaje del servidor
 }
 void createFile(char *sFileName, int sockfd){
      int n;
