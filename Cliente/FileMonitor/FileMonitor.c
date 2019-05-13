@@ -12,7 +12,7 @@ int main(int argc, char **argv) {
     int length, i = 0;
     int fd;
     int wd;
-    char buffer[BUF_LEN];
+    char fileBuffer[BUF_LEN];
 
     fd = inotify_init();
 
@@ -22,17 +22,17 @@ int main(int argc, char **argv) {
 
     wd = inotify_add_watch(fd, ".",
         IN_MODIFY | IN_CREATE | IN_DELETE);
-    length = read(fd, buffer, BUF_LEN);
+    length = read(fd, fileBuffer, BUF_LEN);
 
     if (length < 0) {
         perror("read");
     }
     while(1){
       i = 0;
-      length = read(fd, buffer, BUF_LEN);
+      length = read(fd, fileBuffer, BUF_LEN);
       while (i < length) {
         struct inotify_event *event =
-            (struct inotify_event *) &buffer[i];
+            (struct inotify_event *) &fileBuffer[i];
         if (event->len) {
             if (event->mask & IN_CREATE) {
                 printf("The file %s was created.\n", event->name);

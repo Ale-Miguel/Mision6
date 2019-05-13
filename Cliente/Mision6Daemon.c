@@ -15,6 +15,12 @@ Mariano Hurtado de Mendoza Carranza A00820039
 #include <arpa/inet.h>
 #include <errno.h>
 #include <sys/inotify.h>
+#include <signal.h>
+#include <sys/stat.h>
+#include <syslog.h>
+
+
+
 
 //Constantes para el inotify
 #define EVENT_SIZE  (sizeof(struct inotify_event))
@@ -25,6 +31,44 @@ Mariano Hurtado de Mendoza Carranza A00820039
 #define CREATE_FILE "CREATE"
 #define DELETE_FILE "DELETE"
 #define UPDATE_FILE "UPDATE"
+
+void daemonize()
+{
+    pid_t pid;
+    
+    pid = fork();
+
+    if(pid < 0)
+        exit(EXIT_FAILURE);
+
+    if(pid > 0)
+        exit(EXIT_SUCCESS);
+
+    if(setsid() < 0)
+        exit(EXIT_FAILURE);
+    
+    signal(SIGCHLD,SIG_IGN);
+    signal(SIGHUP,SIG_IGN);
+
+    pid = fork();
+
+    if(pid < 0)
+        exit(EXIT_FAILURE);
+
+    if(pid > 0)
+        exit(EXIT_SUCCESS);
+
+    umask(0);
+
+    chdir("/home/ale/Desktop");
+
+    for(int i = sysconf(_SC_OPEN_MAX); i >= 0; i++)
+    {
+        close(i);
+    }
+
+    openlog("mision6", LOG_PID,LOG_DAEMON);
+}
 
 void error(const char *msg)
 {
@@ -37,6 +81,10 @@ void sendFile(char *sFileName, int sockfd);
 void createFile(char *sFileName, int sockfd);
 
 int main(int argc, char *argv[]){
+
+    
+
+
     int sockfd, portno, n;
     struct sockaddr_in serv_addr;
 
@@ -76,7 +124,7 @@ int main(int argc, char *argv[]){
         perror("inotify_init");
     }
 
-    wd = inotify_add_watch(fd, ".",
+    wd = inotify_add_watch(fd, "/home/ale/Desktop",
         IN_MODIFY | IN_CREATE | IN_DELETE);
     length = read(fd, fileBuffer, BUF_LEN);
 
@@ -84,6 +132,7 @@ int main(int argc, char *argv[]){
         perror("read");
     }
 /*#####################inotify################### */
+    daemonize();
     while(1){
       i = 0;
       length = read(fd, fileBuffer, BUF_LEN);
@@ -92,17 +141,17 @@ int main(int argc, char *argv[]){
             (struct inotify_event *) &fileBuffer[i];
         if (event->len) {
             if (event->mask & IN_CREATE) {
-                printf("The file %s was created.\n", event->name);
+                //printf("The file %s was created.\n", event->name);
                 strcpy(sFileName, event->name);
                 strcpy(sAction, CREATE_FILE);
                 fileHandler(sFileName, sAction, sockfd);
             } else if (event->mask & IN_DELETE) {
-                printf("The file %s was deleted.\n", event->name);
+                //printf("The file %s was deleted.\n", event->name);
                 strcpy(sFileName, event->name);
                 strcpy(sAction, DELETE_FILE);
                 fileHandler(sFileName, sAction, sockfd);
             } else if (event->mask & IN_MODIFY) {
-                printf("The file %s was modified.\n", event->name);
+                //printf("The file %s was modified.\n", event->name);
                 strcpy(sFileName, event->name);
                 strcpy(sAction, UPDATE_FILE);
                 fileHandler(sFileName, sAction, sockfd);
@@ -143,17 +192,17 @@ void fileHandler(char *sFileName, char *sAction, int sockfd){
     bzero(buffer,BUFFER_SIZE);  //Se limpia el buffer
 
     if(strcmp(CREATE_FILE, sAction) == 0){
-        printf("%s\n", sAction);
+        //printf("%s\n", sAction);
         createFile(sFileName, sockfd);
     }else if(strcmp(UPDATE_FILE, sAction) == 0){
-        printf("%s\n", sAction);
+        //printf("%s\n", sAction);
         sendFile(sFileName, sockfd);
     }
     //Se recibe el ok del servidor
     n = read(sockfd,buffer,BUFFER_SIZE-1);
     if (n < 0) error("ERROR reading from socket");
 
-    printf("%s\n",buffer);  //Se imprime el mensaje del servidor
+    //printf("%s\n",buffer);  //Se imprime el mensaje del servidor
 }
 void createFile(char *sFileName, int sockfd){
      int n;
